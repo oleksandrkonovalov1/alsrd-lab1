@@ -31,9 +31,12 @@ const PT_TO_HALF_PT = 2;
 const FONT = "Times New Roman";
 const FONT_CODE = "Courier New";
 const BODY_SIZE = 14 * PT_TO_HALF_PT;
-const CODE_SIZE = 10 * PT_TO_HALF_PT;
+const CODE_SIZE = 9 * PT_TO_HALF_PT;
 const TITLE_SIZE = 14 * PT_TO_HALF_PT;
 const LINE_SPACING_15 = 360;
+const CODE_LEFT_INDENT = 283;
+const CODE_BORDER_COLOR = "4472C4";
+const CODE_BG_COLOR = "F2F2F2";
 
 const margins = {
   top: Math.round(20 * MM_TO_DXA),
@@ -79,6 +82,7 @@ function sectionHeading(number, title, opts = {}) {
   return new Paragraph({
     heading: HeadingLevel.HEADING_1,
     pageBreakBefore: opts.pageBreakBefore ?? false,
+    keepNext: true,
     spacing: { before: 240, after: 120, line: LINE_SPACING_15, lineRule: "auto" },
     children: [
       new TextRun({
@@ -96,6 +100,7 @@ function subsectionHeading(number, title) {
     heading: HeadingLevel.HEADING_2,
     spacing: { before: 120, after: 60, line: LINE_SPACING_15, lineRule: "auto" },
     indent: { firstLine: Math.round(12.5 * MM_TO_DXA) },
+    keepNext: true,
     children: [
       new TextRun({
         text: `${number} ${title}`,
@@ -157,11 +162,15 @@ function formulaParagraph(children, number) {
 function codeParagraph(text) {
   return new Paragraph({
     spacing: { after: 0, line: 240, lineRule: "auto" },
+    indent: { left: CODE_LEFT_INDENT },
+    shading: { fill: CODE_BG_COLOR, color: "auto", type: ShadingType.CLEAR },
+    border: { left: { style: BorderStyle.SINGLE, size: 12, color: CODE_BORDER_COLOR, space: 4 } },
     children: [
       new TextRun({
-        text,
+        text: text || " ",
         font: FONT_CODE,
         size: CODE_SIZE,
+        shading: { fill: CODE_BG_COLOR, color: "auto", type: ShadingType.CLEAR },
       }),
     ],
   });
@@ -171,6 +180,7 @@ function listingCaption(number, title) {
   return new Paragraph({
     spacing: { before: 120, after: 60, line: LINE_SPACING_15, lineRule: "auto" },
     indent: { firstLine: Math.round(12.5 * MM_TO_DXA) },
+    keepNext: true,
     children: [
       bodyRun(`Лістинг ${number} — ${title}`),
     ],
@@ -181,6 +191,7 @@ function tableCaption(number, title) {
   return new Paragraph({
     spacing: { before: 120, after: 60, line: LINE_SPACING_15, lineRule: "auto" },
     indent: { firstLine: Math.round(12.5 * MM_TO_DXA) },
+    keepNext: true,
     children: [
       bodyRun(`Таблиця ${number} — ${title}`),
     ],
