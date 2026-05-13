@@ -12,10 +12,13 @@ import {
   AlignmentType, PageNumber, HeadingLevel,
   PageBreak, BorderStyle,
   Table, TableRow, TableCell, WidthType, ShadingType, VerticalAlign,
+  TabStopType, TabStopPosition,
+  Math as OfficeMath, MathRun, MathSubScript, MathSuperScript,
 } from "docx";
-import { readFileSync, writeFileSync, readdirSync, statSync } from "fs";
+import { readFileSync, writeFileSync, readdirSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
+import { runBenchmarks } from "../../src/benchmark.ts";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -72,13 +75,14 @@ function emptyLine() {
   return centeredParagraph(titleRun(""));
 }
 
-function sectionHeading(number, title) {
+function sectionHeading(number, title, opts = {}) {
   return new Paragraph({
     heading: HeadingLevel.HEADING_1,
+    pageBreakBefore: opts.pageBreakBefore ?? false,
     spacing: { before: 240, after: 120, line: LINE_SPACING_15, lineRule: "auto" },
     children: [
       new TextRun({
-        text: `${number} ${title}`.toUpperCase(),
+        text: [number, title].filter(Boolean).join(" ").toUpperCase(),
         font: FONT,
         size: BODY_SIZE,
         bold: true,
@@ -103,12 +107,50 @@ function subsectionHeading(number, title) {
   });
 }
 
-function bodyParagraph(text) {
+function bodyParagraph(text, opts = {}) {
   return new Paragraph({
-    spacing: { after: 0, line: LINE_SPACING_15, lineRule: "auto" },
+    spacing: {
+      before: opts.before ?? 0,
+      after: opts.after ?? 0,
+      line: LINE_SPACING_15,
+      lineRule: "auto",
+    },
     indent: { firstLine: Math.round(12.5 * MM_TO_DXA) },
     alignment: AlignmentType.JUSTIFIED,
     children: [bodyRun(text)],
+  });
+}
+
+function formulaText(text) {
+  return new MathRun(text);
+}
+
+function formulaSub(base, subScript) {
+  return new MathSubScript({
+    children: [formulaText(base)],
+    subScript: [formulaText(subScript)],
+  });
+}
+
+function formulaSuper(base, superScript) {
+  return new MathSuperScript({
+    children: [formulaText(base)],
+    superScript: [formulaText(superScript)],
+  });
+}
+
+function formulaParagraph(children, number) {
+  return new Paragraph({
+    spacing: { before: 80, after: 80, line: LINE_SPACING_15, lineRule: "auto" },
+    tabStops: [
+      { type: TabStopType.CENTER, position: Math.round(TabStopPosition.MAX / 2) },
+      { type: TabStopType.RIGHT, position: TabStopPosition.MAX },
+    ],
+    children: [
+      bodyRun("\t"),
+      new OfficeMath({ children }),
+      bodyRun(`\t(${number})`),
+    ],
   });
 }
 
@@ -232,15 +274,7 @@ function dataCell(text, alignment = AlignmentType.CENTER) {
   });
 }
 
-function buildBenchmarkTable() {
-  const data = [
-    ["1 000", "0.0006", "0.0000", "0.0001"],
-    ["10 000", "0.0058", "0.0001", "0.0001"],
-    ["100 000", "0.0595", "0.0001", "0.0002"],
-    ["1 000 000", "0.5814", "0.0001", "0.0002"],
-    ["10 000 000", "5.9384", "0.0001", "0.0002"],
-  ];
-
+function buildBenchmarkTable(results) {
   const headerRow = new TableRow({
     children: [
       headerCell("n"),
@@ -251,14 +285,14 @@ function buildBenchmarkTable() {
     tableHeader: true,
   });
 
-  const dataRows = data.map(
-    ([n, lin, binI, binR]) =>
+  const dataRows = results.map(
+    ({ n, linearMs, binaryIterMs, binaryRecMs }) =>
       new TableRow({
         children: [
-          dataCell(n),
-          dataCell(lin),
-          dataCell(binI),
-          dataCell(binR),
+          dataCell(n.toLocaleString("uk-UA")),
+          dataCell(linearMs.toFixed(4)),
+          dataCell(binaryIterMs.toFixed(4)),
+          dataCell(binaryRecMs.toFixed(4)),
         ],
       }),
   );
@@ -269,6 +303,8 @@ function buildBenchmarkTable() {
     borders: TABLE_BORDERS,
   });
 }
+
+const benchmarkResults = runBenchmarks();
 
 // ─── TITLE PAGE ──────────────────────────────────────────────────────
 
@@ -339,6 +375,9 @@ const bodyParagraphs = [
   bodyParagraph(
     "Нижче наведено псевдокод трьох алгоритмів пошуку, які порівнюються у цій лабораторній роботі.",
   ),
+  bodyParagraph(
+    "Двійковий пошук застосовується лише до відсортованого масиву. У програмі вхідний масив формується як послідовність чисел від 0 до n - 1.",
+  ),
 
   listingCaption("3.1", "Лінійний пошук"),
   ...codeBlock(
@@ -382,22 +421,78 @@ const bodyParagraphs = [
   ...codeBlock(
     `Рядок 1: for i = 0 to n-1       — вартість c1, виконується n разів
 Рядок 2:     if arr[i] == target  — вартість c2, виконується n разів
-Рядок 3: return -1                — вартість c4, виконується 1 раз
-
-T(n) = c1·n + c2·n + c4 = Θ(n)`,
+Рядок 3: return -1                — вартість c3, виконується 1 раз`,
+  ),
+  formulaParagraph(
+    [
+      formulaSub("T", "л"),
+      formulaText("(n) = "),
+      formulaSub("c", "1"),
+      formulaText("·n + "),
+      formulaSub("c", "2"),
+      formulaText("·n + "),
+      formulaSub("c", "3"),
+      formulaText(" = ("),
+      formulaSub("c", "1"),
+      formulaText(" + "),
+      formulaSub("c", "2"),
+      formulaText(")·n + "),
+      formulaSub("c", "3"),
+      formulaText(" = Θ(n)"),
+    ],
+    "3.1",
   ),
 
   bodyParagraph("Двійковий пошук ітеративний (найгірший випадок):"),
   ...codeBlock(
     `Рядок 1: low = 0, high = n-1             — вартість c1, виконується 1 раз
-Рядок 2: while low <= high                — вартість c2, виконується ⌊log₂n⌋+1 разів
-Рядок 3:     mid = floor((low+high)/2)    — вартість c3, виконується ⌊log₂n⌋ разів
-Рядок 4:     if arr[mid] == target         — вартість c4, виконується ⌊log₂n⌋ разів
-Рядок 5:     if arr[mid] < target          — вартість c5, виконується ⌊log₂n⌋ разів
-Рядок 6:         low = mid+1 / high=mid-1  — вартість c6, виконується ⌊log₂n⌋ разів
-Рядок 7: return -1                         — вартість c7, виконується 1 раз
-
-T(n) = c1 + (c2+c3+c4+c5+c6)·⌊log₂n⌋ + c7 = Θ(log n)`,
+Рядок 2: while low <= high                — вартість c2, виконується k + 1 разів
+Рядок 3:     mid = floor((low+high)/2)    — вартість c3, виконується k разів
+Рядок 4:     if arr[mid] == target         — вартість c4, виконується k разів
+Рядок 5:     if arr[mid] < target          — вартість c5, виконується k разів
+Рядок 6:         low = mid+1 / high=mid-1  — вартість c6, виконується k разів
+Рядок 7: return -1                         — вартість c7, виконується 1 раз`,
+  ),
+  bodyParagraph(
+    "Позначимо кількість ітерацій циклу як k. У найгіршому випадку на кожному кроці область пошуку зменшується вдвічі, тому:",
+  ),
+  formulaParagraph(
+    [
+      formulaText("k = ⌊"),
+      formulaSub("log", "2"),
+      formulaText(" n⌋ + 1"),
+    ],
+    "3.2",
+  ),
+  bodyParagraph(
+    "Перевірка умови циклу while виконується k + 1 разів, а тіло циклу — k разів.",
+  ),
+  formulaParagraph(
+    [
+      formulaSub("T", "і"),
+      formulaText("(n) = "),
+      formulaSub("c", "1"),
+      formulaText(" + "),
+      formulaSub("c", "2"),
+      formulaText("·(k + 1) + ("),
+      formulaSub("c", "3"),
+      formulaText(" + "),
+      formulaSub("c", "4"),
+      formulaText(" + "),
+      formulaSub("c", "5"),
+      formulaText(" + "),
+      formulaSub("c", "6"),
+      formulaText(")·k + "),
+      formulaSub("c", "7"),
+    ],
+    "3.3",
+  ),
+  formulaParagraph(
+    [
+      formulaSub("T", "і"),
+      formulaText("(n) = Θ(log n)"),
+    ],
+    "3.4",
   ),
 
   // 3.3 Аналіз рекурсивного алгоритму
@@ -405,38 +500,60 @@ T(n) = c1 + (c2+c3+c4+c5+c6)·⌊log₂n⌋ + c7 = Θ(log n)`,
   bodyParagraph(
     "Рекурсивний варіант двійкового пошуку має рекурентне співвідношення:",
   ),
-  ...codeBlock("T(n) = T(n/2) + Θ(1)"),
+  formulaParagraph(
+    [
+      formulaSub("T", "р"),
+      formulaText("(n) = "),
+      formulaSub("T", "р"),
+      formulaText("(n / 2) + Θ(1)"),
+    ],
+    "3.5",
+  ),
   bodyParagraph(
     "Застосуємо основну теорему (Master Theorem): a = 1, b = 2, f(n) = Θ(1).",
   ),
-  bodyParagraph(
-    "Оскільки log_b(a) = log₂(1) = 0, маємо f(n) = Θ(n^0) = Θ(1), що відповідає випадку 2 основної теореми.",
+  bodyParagraph("Оскільки для цього випадку виконується:"),
+  formulaParagraph(
+    [
+      formulaSub("log", "2"),
+      formulaText("(1) = 0, f(n) = Θ("),
+      formulaSuper("n", "0"),
+      formulaText(") = Θ(1)"),
+    ],
+    "3.6",
   ),
-  bodyParagraph("Отже: T(n) = Θ(log n)."),
+  bodyParagraph("Це відповідає випадку 2 основної теореми."),
+  formulaParagraph(
+    [
+      formulaSub("T", "р"),
+      formulaText("(n) = Θ(log n)"),
+    ],
+    "3.7",
+  ),
 
   // 4 РЕЗУЛЬТАТИ
-  sectionHeading("4", "Результати"),
+  sectionHeading("4", "Результати", { pageBreakBefore: true }),
   bodyParagraph(
-    "Програму було запущено для масивів різного розміру. Результати вимірювання часу виконання наведено у таблиці 4.1.",
+    "Програму було запущено для масивів різного розміру. Для зменшення похибки вимірювання кожен алгоритм виконувався багаторазово, після чого обчислювався середній час одного запуску.",
   ),
   tableCaption("4.1", "Результати вимірювання часу виконання алгоритмів пошуку"),
-  buildBenchmarkTable(),
+  buildBenchmarkTable(benchmarkResults),
   bodyParagraph(
     "Як видно з таблиці, час лінійного пошуку зростає лінійно зі збільшенням n, тоді як двійковий пошук залишається майже сталим, що відповідає логарифмічній складності.",
+    { before: 120 },
   ),
 
   // 5 ВИСНОВКИ
-  sectionHeading("5", "Висновки"),
+  sectionHeading("5", "Висновки", { pageBreakBefore: true }),
   bodyParagraph(
-    "Практичні виміри підтвердили теоретичні оцінки: час лінійного пошуку зростає пропорційно n, тоді як час двійкового пошуку зростає логарифмічно. Рекурсивний та ітеративний варіанти двійкового пошуку показали близьку швидкодію, що відповідає однаковій асимптотичній оцінці Θ(log n).",
+    "Практичні виміри підтвердили теоретичні оцінки. У найгіршому випадку лінійний пошук має складність Θ(n), оскільки перевіряє всі елементи масиву. Ітеративний і рекурсивний двійковий пошук мають складність Θ(log n), оскільки на кожному кроці область пошуку зменшується вдвічі. Рекурсивний варіант додатково використовує стек викликів.",
   ),
 ];
 
 // ─── ДОДАТОК А — Вихідний код програми ──────────────────────────────
 
 const appendixParagraphs = [
-  new Paragraph({ children: [new PageBreak()] }),
-  sectionHeading("", "Додаток А"),
+  sectionHeading("", "Додаток А", { pageBreakBefore: true }),
   centeredParagraph(bodyRun("Вихідний код програми", { bold: true })),
   emptyLine(),
 ];

@@ -5,7 +5,7 @@
   "scripts": {
     "start": "tsx src/main.ts",
     "benchmark": "tsx src/main.ts",
-    "report": "node reports/lr1/generate-report.mjs"
+    "report": "node --import tsx reports/lr1/generate-report.mjs"
   },
   "devDependencies": {
     "tsx": "^4",
