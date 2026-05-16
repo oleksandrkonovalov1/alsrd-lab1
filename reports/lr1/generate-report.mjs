@@ -285,6 +285,33 @@ function dataCell(text, alignment = AlignmentType.CENTER) {
   });
 }
 
+function complexityTable(rows) {
+  const header = new TableRow({
+    children: [
+      headerCell("№"),
+      headerCell("Код"),
+      headerCell("Вартість"),
+      headerCell("Кількість виконань"),
+    ],
+    tableHeader: true,
+  });
+  const dataRows = rows.map(([num, code, cost, count]) =>
+    new TableRow({
+      children: [
+        dataCell(num),
+        dataCell(code, AlignmentType.LEFT),
+        dataCell(cost),
+        dataCell(count),
+      ],
+    })
+  );
+  return new Table({
+    rows: [header, ...dataRows],
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    borders: TABLE_BORDERS,
+  });
+}
+
 function buildBenchmarkTable(results) {
   const headerRow = new TableRow({
     children: [
@@ -429,11 +456,12 @@ const bodyParagraphs = [
   ),
 
   bodyParagraph("Лінійний пошук (найгірший випадок — елемент не знайдено):"),
-  ...codeBlock(
-    `Рядок 1: for i = 0 to n-1       — вартість c1, виконується n разів
-Рядок 2:     if arr[i] == target  — вартість c2, виконується n разів
-Рядок 3: return -1                — вартість c3, виконується 1 раз`,
-  ),
+  complexityTable([
+    ["1", "for i = 0 to n-1", "C1", "n"],
+    ["2", "if arr[i] == target", "C2", "n"],
+    ["3", "return i", "C3", "0"],
+    ["4", "return -1", "C4", "1"],
+  ]),
   formulaParagraph(
     [
       formulaSub("T", "л"),
@@ -453,17 +481,18 @@ const bodyParagraphs = [
     ],
     "3.1",
   ),
+  bodyParagraph("За правилами асимптотичного аналізу відкидаємо константи та доданки менших порядків. Домінуючий член — n."),
 
   bodyParagraph("Двійковий пошук ітеративний (найгірший випадок):"),
-  ...codeBlock(
-    `Рядок 1: low = 0, high = n-1             — вартість c1, виконується 1 раз
-Рядок 2: while low <= high                — вартість c2, виконується k + 1 разів
-Рядок 3:     mid = floor((low+high)/2)    — вартість c3, виконується k разів
-Рядок 4:     if arr[mid] == target         — вартість c4, виконується k разів
-Рядок 5:     if arr[mid] < target          — вартість c5, виконується k разів
-Рядок 6:         low = mid+1 / high=mid-1  — вартість c6, виконується k разів
-Рядок 7: return -1                         — вартість c7, виконується 1 раз`,
-  ),
+  complexityTable([
+    ["1", "low = 0, high = n-1", "C1", "1"],
+    ["2", "while low <= high", "C2", "⌊log₂n⌋ + 1"],
+    ["3", "mid = floor((low+high)/2)", "C3", "⌊log₂n⌋"],
+    ["4", "if arr[mid] == target", "C4", "⌊log₂n⌋"],
+    ["5", "if arr[mid] < target", "C5", "⌊log₂n⌋"],
+    ["6", "low = mid+1 / high = mid-1", "C6", "⌊log₂n⌋"],
+    ["7", "return -1", "C7", "1"],
+  ]),
   bodyParagraph(
     "Позначимо кількість ітерацій циклу як k. У найгіршому випадку на кожному кроці область пошуку зменшується вдвічі, тому:",
   ),
@@ -505,6 +534,7 @@ const bodyParagraphs = [
     ],
     "3.4",
   ),
+  bodyParagraph("Домінуючий член — log₂n. Відкидаємо константи та менші порядки."),
 
   // 3.3 Аналіз рекурсивного алгоритму
   subsectionHeading("3.3", "Аналіз рекурсивного алгоритму"),
